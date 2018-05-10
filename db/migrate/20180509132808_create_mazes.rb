@@ -3,6 +3,7 @@ class CreateMazes < ActiveRecord::Migration[5.1]
     create_table :mazes do |t|
       t.integer :height
       t.integer :width
+      t.jsonb :blockers, default: {}
       t.timestamps
     end
   end

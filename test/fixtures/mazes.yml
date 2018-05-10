@@ -1,10 +1,11 @@
 # Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
-unsolveable:
-  id: 1
+unsolvable:
   height: 4
   width: 2
+  blockers: { "1-0": true, "1-1": true }
 
-two:
-  height: 1
-  width: 1
+solvable:
+  height: 4
+  width: 2
+  blockers: { "1-1": true }

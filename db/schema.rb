@@ -26,6 +26,7 @@ ActiveRecord::Schema.define(version: 20180510013903) do
   create_table "mazes", force: :cascade do |t|
     t.integer "height"
     t.integer "width"
+    t.jsonb "blockers", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end

@@ -1,39 +1,19 @@
 class Maze < ApplicationRecord
-
-  has_many :blockers, dependent: :destroy
-
-  MAX_SIZE_GRID = 1000
+  MAX_SIZE_GRID = 40
   GRID_MINIMUM_OFFSET = 2
+  BLOCKERS_DIFFICULTY = 3
 
   before_create :construct_maze
 
-  def construct_maze
-    self.width = rand(GRID_MINIMUM_OFFSET..MAX_SIZE_GRID)  # col = x = width
-    self.height = rand(GRID_MINIMUM_OFFSET..MAX_SIZE_GRID) # row = y = height
-
-    loop do # DFS check if possible to solve puzzle to ensure its possible, otherwise recreate
-      randomize_blockers
-      if is_maze_solvable?
-        break
-      end
-    end
-  end
-
-  # Check starting and end points contained in solution
-  # Check solution does not go diagonal or backwards
-  # check solution point does not include a blocker
   def solve(solution_params)
-    current_point = solution_params.shift
-    end_point = solution_params.pop
+    current_point = solution_params[0]
+    end_point = solution_params[solution_params.length - 1]
 
-    unless is_starting_point(current_point[:y], current_point[:x]) &&
-      solution_params.length < 3 &&
-      is_end_point(end_point[:y], end_point[:x])
+    unless is_starting_point(current_point["y"], current_point["x"]) && is_end_point(end_point["y"], end_point["x"])
       return false
     end
 
     solution_params.each do |point|
-      binding.pry
       if is_valid_move(point, current_point)
         current_point = point
         next
@@ -41,13 +21,11 @@ class Maze < ApplicationRecord
         return false
       end
     end
+
     true
   end
 
-  def randomize_blockers
-    num_of_blockers = rand(MAX_SIZE_GRID/3) + GRID_MINIMUM_OFFSET
-    blockers = {}
-
+  def randomize_blockers(num_of_blockers)
     while num_of_blockers > 0 do
       num_of_blockers -= 1
 
@@ -56,42 +34,67 @@ class Maze < ApplicationRecord
 
       next if maze_blocker_invalid?(row, col)
 
-      blockers["#{row}-#{col}"] = Blocker.new(x: col, y: row)
+      self.blockers["#{row}-#{col}"] = true
     end
-    self.blockers = blockers.values
   end
 
-  def check(y, x)
-    self.blockers.where(x: x, y: y).present?
+  def is_valid_space(y, x)
+    !self.blockers["#{y}-#{x}"].present? && within_bounds(y, x)
   end
 
-  def is_maze_solvable?(current_x=0, current_y=0)
+  def is_maze_solvable?(current_y=0, current_x=0, memoize={})
     if is_end_point(current_y, current_x)
-      return true
+      return memoize
     end
 
-    if self.blockers.select { |invalid_block| invalid_block.x == current_x && invalid_block.y == current_y }.present? ||
-      !within_bounds(current_y, current_x)
+    if self.blockers["#{current_y}-#{current_x}"] || !within_bounds(current_y, current_x)
       return false
     end
 
-    is_maze_solvable?(current_x + 1, current_y) || is_maze_solvable?(current_x , current_y + 1)
+    if memoize["#{current_y}-#{current_x}"]
+      return false
+    else
+      memoize["#{current_y}-#{current_x}"] = true
+    end
+
+    is_maze_solvable?(current_y + 1, current_x, memoize) || is_maze_solvable?(current_y, current_x + 1, memoize)
   end
 
   private
 
+  def construct_maze
+    self.width = rand(GRID_MINIMUM_OFFSET..MAX_SIZE_GRID)  # col = x = width
+    self.height = rand(GRID_MINIMUM_OFFSET..MAX_SIZE_GRID) # row = y = height
+
+    maze_difficulty = BLOCKERS_DIFFICULTY
+
+    # DFS check to ensure its possible to go through the maze, otherwise recreate
+    loop do
+      self.blockers = {} # reset blockers
+
+      num_of_blockers = rand(MAX_SIZE_GRID/maze_difficulty) + GRID_MINIMUM_OFFSET
+      randomize_blockers(num_of_blockers)
+      if is_maze_solvable? # Will be a bottle neck if MAX_GRID_SIZE is too large
+        break
+      end
+      maze_difficulty += BLOCKERS_DIFFICULTY # Decrease difficulty if unsolvable
+    end
+  end
+
+  # Check point does not skip points over other points
+  # Check solution does not go diagonal or backwards
+  # Check solution point does not include a blocker
   def is_valid_move(target_point, reference_point)
-    distance_x = target_point[:x] - reference_point[:x]
-    distance_y = target_point[:y] - reference_point[:y]
-    binding.pry
+    distance_x = target_point["x"] - reference_point["x"]
+    distance_y = target_point["y"] - reference_point["y"]
+
     if distance_x > 0 && distance_y > 0 # Diagonal move
       false
-      # "Cannot make a diagonal move"
-    elsif distance_x < 0 || distance_y < 0 # Moving backwards
-      # "Cannot make a backwards move"
+    elsif distance_x > 1 || distance_y > 1 # Jumping a square
       false
-    elsif self.blockers.where(x: target_point[:x], y: target_point[:y]).present? # Blocker
-      # "You have reached a blocker"
+    elsif distance_x < 0 || distance_y < 0 # Moving backwards
+      false
+    elsif !is_valid_space(target_point["y"], target_point["x"]) # Reached a blocker
       false
     else
       true
@@ -99,7 +102,7 @@ class Maze < ApplicationRecord
   end
 
   def within_bounds(row, col)
-    row < self.height && col < self.width
+    row < self.height && col < self.width && row >= 0 && col >= 0
   end
 
   def is_starting_point(row, col)
