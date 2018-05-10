@@ -1,0 +1,10 @@
+# Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+unsolveable:
+  id: 1
+  height: 4
+  width: 2
+
+two:
+  height: 1
+  width: 1
